@@ -1,0 +1,326 @@
+Here's the updated code for each task without setting the SparkConf. This assumes that the SparkContext is already set up in the environment where this code is run.
+
+if spark not running 
+ val conf = new SparkConf().setAppName("Average from CSV").setMaster("local")
+    val sc = new SparkContext(conf)
+
+### 15. Analyze `fold()` and `aggregate()` functions in Spark
+
+```scala
+import org.apache.spark.SparkContext
+
+object FoldAggregateExample {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val rdd = sc.parallelize(List.fill(100)(1))
+
+    // Using fold
+    val foldResult = rdd.fold(0)(_ + _ + 100)
+
+    // Using aggregate
+    val aggregateResult = rdd.aggregate(0)((acc, value) => acc + value + 100, _ + _)
+
+    println(s"Fold result: $foldResult")
+    println(s"Aggregate result: $aggregateResult")
+
+    sc.stop()
+  }
+}
+```
+
+### 16. Count occurrences of each word in a text file using Spark RDD
+
+```scala
+import org.apache.spark.SparkContext
+
+object WordCount {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val textFile = sc.textFile("text.txt")
+    val counts = textFile.flatMap(line => line.split(" "))
+                          .map(word => (word, 1))
+                          .reduceByKey(_ + _)
+
+    counts.saveAsTextFile("wordcounts")
+
+    val frequentWords = counts.filter(_._2 > 4)
+    frequentWords.collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 17. Counting occurrences of each word using pair RDD
+
+```scala
+import org.apache.spark.SparkContext
+
+object PairRDDWordCount {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val textFile = sc.textFile("text.txt")
+    val counts = textFile.flatMap(line => line.split(" "))
+                          .map(word => (word, 1))
+                          .reduceByKey(_ + _)
+
+    counts.collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 18. Print top 10 tweeters from reduced-tweets.json
+
+```scala
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.SparkSession
+
+object TopTweeters {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+    val spark = SparkSession.builder().getOrCreate()
+    import spark.implicits._
+
+    val tweets = spark.read.json("reduced-tweets.json")
+    val topTweeters = tweets.groupBy("user").count().orderBy($"count".desc).limit(10)
+    
+    topTweeters.show()
+
+    sc.stop()
+  }
+}
+```
+
+### 19. Spark Streaming for word counts using netcat
+
+```scala
+import org.apache.spark.SparkContext
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+
+object NetworkWordCount {
+  def main(args: Array[String]): Unit = {
+    val conf = SparkContext.getOrCreate().conf
+    val ssc = new StreamingContext(conf, Seconds(5))
+
+    val lines = ssc.socketTextStream("localhost", 9999)
+    val words = lines.flatMap(_.split(" "))
+    val wordCounts = words.map(x => (x, 1)).reduceByKey(_ + _)
+
+    wordCounts.print()
+
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+```
+
+To test this, run `netcat` on the terminal:
+```sh
+nc -lk 9999
+```
+
+### 20. Average marks using `combineByKey()`
+
+```scala
+import org.apache.spark.SparkContext
+
+object AverageMarks {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val data = Array(
+      ("Joe", "Maths", 83), ("Joe", "Physics", 74), ("Joe", "Chemistry", 91), ("Joe", "Biology", 82),
+      ("Nik", "Maths", 69), ("Nik", "Physics", 62), ("Nik", "Chemistry", 97), ("Nik", "Biology", 80)
+    )
+
+    val rdd = sc.parallelize(data)
+
+    val combineRdd = rdd.map{ case (name, subject, marks) => (name, (marks, 1)) }
+                        .combineByKey(
+                          (v: (Int, Int)) => v,
+                          (acc: (Int, Int), v: (Int, Int)) => (acc._1 + v._1, acc._2 + v._2),
+                          (acc1: (Int, Int), acc2: (Int, Int)) => (acc1._1 + acc2._1, acc1._2 + acc2._2)
+                        ).mapValues{ case (sum, count) => sum.toDouble / count }
+
+    combineRdd.collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 21. Partitioning Employee table by Dept
+
+```scala
+import org.apache.spark.SparkContext
+
+object PartitionEmployee {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val data = Array(
+      (1, "HR", "Manager"), (2, "IT", "Developer"), (3, "HR", "Recruiter"), 
+      (4, "IT", "Tester"), (5, "Finance", "Analyst"), (6, "Finance", "Clerk")
+    )
+
+    val rdd = sc.parallelize(data).keyBy(_._2).partitionBy(new org.apache.spark.HashPartitioner(4))
+    rdd.mapPartitionsWithIndex((index, iter) => iter.map(x => (index, x))).collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 22. Average of 100 integers from CSV file
+
+```scala
+import org.apache.spark.SparkContext
+
+object AverageFromCSV {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val data = sc.textFile("numbers.csv").flatMap(_.split(",")).map(_.toInt)
+    val count = data.count()
+    val sum = data.sum()
+
+    val average = sum / count
+    println(s"Average: $average")
+
+    sc.stop()
+  }
+}
+```
+
+### 23. Construct RDD from collection and use `mapPartitionsWithIndex`
+
+```scala
+import org.apache.spark.SparkContext
+
+object PartitionedRDD {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val data = Array(11, 34, 45, 67, 3, 4, 90)
+    val rdd = sc.parallelize(data, 3)
+
+    val partitioned = rdd.mapPartitionsWithIndex((index, iter) => iter.map(value => (index, value + 1)))
+    partitioned.collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 24. Working with Item collection
+
+```scala
+import org.apache.spark.SparkContext
+
+object ItemCollection {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val items = Map("Ball" -> 10, "Ribbon" -> 50, "Box" -> 20, "Pen" -> 5, "Book" -> 8, "Dairy" -> 4, "Pin" -> 20)
+    val rdd = sc.parallelize(items.toSeq)
+
+    println(s"Number of partitions: ${rdd.partitions.length}")
+
+    rdd.collect().foreach(println)
+
+    rdd.mapPartitionsWithIndex((index, iter) => iter.map(x => (index, x))).collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 25. Partitioned Item collection
+
+```scala
+import org.apache.spark.SparkContext
+
+object PartitionedItemCollection {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val items = sc.parallelize(Seq(
+      ("Ball", 10), ("Ribbon", 50), ("Box", 20), 
+      ("Pen", 5), ("Book", 8), ("Dairy", 4), ("Pin", 20)
+    ), 3)
+
+    println(s"Number of partitions: ${items.partitions.length}")
+
+    items.collect().foreach(println)
+
+    items.mapPartitionsWithIndex((index, iter) => iter.map(x => (index, x))).collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 26. Count occurrences of each word from words.txt
+
+```scala
+import org.apache.spark.SparkContext
+
+object WordCountTask {
+  def main(args: Array[String]): Unit = {
+    val sc = SparkContext.getOrCreate()
+
+    val textFile = sc.textFile("words.txt")
+    val counts = textFile.flatMap(line => line.split(" "))
+                          .map(word => (word, 1))
+                          .reduceByKey(_ + _)
+
+    // Count the number of occurrences of each word
+    counts.collect().foreach(println)
+
+    // Arrange the word count in ascending order based on Key
+    counts.sortByKey().collect().foreach(println)
+
+    // Display the words that begin with 's'
+    counts.filter(_._1.startsWith("s")).collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+### 27. Application of `combineByKey`
+
+```scala
+import org.apache.spark.SparkContext
+
+object CombineByKeyExample {
+  def main(args: Array[String]): Unit = {
+    val sc = Spark
+
+Context.getOrCreate()
+
+    val data = Seq(
+      ("coffee", 2), ("cappuccino", 5), ("tea", 3), 
+      ("coffee", 10), ("cappuccino", 15)
+    )
+
+    val rdd = sc.parallelize(data)
+    val combined = rdd.combineByKey(
+      (v: Int) => v,
+      (acc: Int, v: Int) => acc + v,
+      (acc1: Int, acc2: Int) => acc1 + acc2
+    )
+
+    combined.collect().foreach(println)
+
+    sc.stop()
+  }
+}
+```
+
+Feel free to ask if you need further adjustments or explanations!
