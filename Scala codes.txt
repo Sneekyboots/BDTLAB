@@ -120,7 +120,8 @@ object QuickSortImperative {
 
 // To run the main method, you can use the following entry point:
 QuickSortImperative.main(Array())
--------------------------------------
+-------------------------------------\
+cAPITALIZE EACH WORD
 def capitalizeEachLetter(sentence: String): String = {
   sentence.split(" ").map(_.toUpperCase).mkString(" ")
 }
